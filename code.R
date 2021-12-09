@@ -4,47 +4,60 @@ library(ape)
 library(phylobase)
 library(picante)
 library(phytools)
-setwd("//NASLSB/Base de données/BD Cirad")
-
-# data <- read.csv("Extraction_base_phy_meca-Essais meca.csv", header=T, sep=";", dec=".")
-# guyane <- data[data$LIB_PAYS == "Guyane Francaise",]
-# guyane$taxon <- paste(guyane$genus, guyane$sp, sep=" ")
-# taxo_cor <- correctTaxo(guyane$taxon, useCache=F)
-
-# guyane$genus <- taxo_cor$genusCorrected 
-# guyane$sp <- taxo_cor$speciesCorrected 
-# 
-# family_result <- getTaxonomy(guyane$genus)
-# guyane$family <- family_result$family
-# 
-# write.csv(guyane, "Essais meca_guyane.csv")
+library(Taxonstand)
+library(ggtree)
+library(ggplot)
 
 
-guyane <- read.csv("Essais meca_guyane.csv", header=T, sep=";", dec=".")
-guyane$family <- as.factor(guyane$family)
-guyane$sp[guyane$genus == "Tabebuia" & guyane$sp == "serratifolia"] <- "serratifolius"
-guyane$genus[guyane$genus == "Tabebuia" & guyane$sp == "serratifolius"] <- "Handroanthus"
-guyane$genus[guyane$genus == "Balizia" & guyane$sp == "pedicellaris"] <- "Albizia"
-guyane$sp[guyane$genus == "Cedrelinga" & guyane$sp == "catenaeformis"] <- "cateniformis"
-guyane$genus[guyane$genus == "Sclerolobium" & guyane$sp == "melinonii"] <- "Tachigali"
-guyane$genus[guyane$genus == "Bombacopsis" & guyane$sp == "nervosa"] <- "Pachira"
+#setwd("//NASLSB/Base de données/BD Cirad")
 
+setwd("E:\\Travaux\\Projets de recherche\\non-financés\\ShrinkageDiversity")
+data <- read.csv("Extraction_base_phy_meca-Essais meca.csv", header=T, sep=";", dec=".")
+guyane <- data[data$LIB_PAYS == "Guyane Francaise",]
+guyane$taxon <- paste(guyane$genus, guyane$sp, sep=" ")
 
+### Correction de la bota par the PlantList
+# TPL_cor <- TPL(unique(guyane$taxon))
+# write.csv(TPL_cor,"TPL_cor.csv")
+ 
+### Modification des noms 
+TPL_cor           <- read.csv("TPL_cor.csv", header=T, sep=";", dec=".")
+TPL_cor$taxon_cor <- with(TPL_cor, paste(New.Genus, New.Species, sep=' '))
 
+# Taxon
+newTaxon <- rep(NA, dim(guyane)[1])
+for(i in 1:dim(guyane)[1]){
+newTaxon[i]  <-  TPL_cor$taxon_cor[TPL_cor$Taxon == paste(guyane$taxon[i])] }
+names(guyane)[33] <- "taxon_old"
+guyane$taxon <- newTaxon
 
-
-guyane$taxon  <- paste(guyane$genus, guyane$sp, sep=" ")
+# genre espéce
+for(i in 1:dim(guyane)[1]){
+   guyane$genus[i]  <-  strsplit(guyane$taxon," ")[[i]][1] 
+   guyane$sp[i]     <-  strsplit(guyane$taxon," ")[[i]][2]}
+# suppression des sp
 guyane <- guyane[guyane$sp !='sp',]
 
+# ajout famille
+guyane$family <- rep(NA, dim(guyane)[1])
+for(i in 1:dim(guyane)[1]){
+      guyane$family[i] <- TPL_cor$Family[TPL_cor$taxon_cor == paste(guyane$taxon[i])]}
 
+guyane$family <- as.factor(guyane$family)
+### Correction tachigali
+guyane$genus[guyane$genus == "Sclerolobium" & guyane$sp == "melinonii"] <- "Tachigali"
+guyane$taxon[guyane$taxon == "Sclerolobium melinonii"] <- "Tachigali melinonii"
+
+
+
+
+#### Création data moyénnés
 guyane_m <- aggregate(RB  ~ taxon + family,guyane, mean)
 aggD12 <- aggregate(D12  ~ taxon + family,guyane, mean)
-
 guyane_m$D12 <- aggD12$D12
 
-
-
-plot(RB ~ D12, guyane_m)
+### Extaction residus RB vs D12
+#plot(RB ~ D12, guyane_m)
 m <- lm(RB~ D12, guyane_m)
 abline(m)
 guyane_m$shrinkage_res <- residuals(m)
@@ -60,37 +73,35 @@ text(x = 1:nlevels(guyane_m$family),
      ## Rotate the labels by 35 degrees.
      srt = 35,
      cex = 0.6)
-
-
 tip <- gsub(" ", "_", guyane_m$taxon)
 
 
 
-zanne <- read.tree("E:\\Travaux\\Projets de recherche\\non-financés\\ShrinkageDiversity\\Vascular_Plants_rooted.dated.txt")
-in_zanne <- na.omit(match(tip, zanne$tip.label))
-not_in_zanne <- which(is.na(match(tip, zanne$tip.label)))
-treeZ <- keep.tip(zanne, in_zanne)
-treeZinit <- force.ultrametric(treeZ, method=c("extend"))
-plot(treeZinit, cex=0.5, no.margin=T,direction="up")
-t1z <- treeZinit
-for(i in 1:length(tip[not_in_zanne])){t1z<-add.species.to.genus(t1z, tip[not_in_zanne][i])}
-treeZ <- t1z
-plot(treeZ, cex=0.5, no.margin=T,direction="up")
+# zanne <- read.tree("E:\\Travaux\\Projets de recherche\\non-financés\\ShrinkageDiversity\\Vascular_Plants_rooted.dated.txt")
+# in_zanne <- na.omit(match(tip, zanne$tip.label))
+# not_in_zanne <- which(is.na(match(tip, zanne$tip.label)))
+# treeZ <- keep.tip(zanne, in_zanne)
+# treeZinit <- force.ultrametric(treeZ, method=c("extend"))
+# plot(treeZinit, cex=0.5, no.margin=T,direction="up")
+# t1z <- treeZinit
+# for(i in 1:length(tip[not_in_zanne])){t1z<-add.species.to.genus(t1z, tip[not_in_zanne][i])}
+# treeZ <- t1z
+# plot(treeZ, cex=0.5, no.margin=T,direction="up")
+# sp_not_in_tree <- tip[which(is.na(match(tip, treeZ$tip.label)))]
 
-
-sp_not_in_tree <- tip[which(is.na(match(tip, treeZ$tip.label)))]
-
-
+#### #### #### #### #### #### #### #### #### #### #### #### #### 
+#### Creation phylogeny basé sur phylo de Janssens et al.   #### 
+#### #### #### #### #### #### #### #### #### #### #### #### #### 
 janssens <- read.nexus("E:\\Travaux\\Projets de recherche\\non-financés\\ShrinkageDiversity\\Janssens.tre")
 janssens$tip.label[janssens$tip.label=="OUT_Pinus"] <- 'Pinus_caribaea'
-janssens$tip.label[janssens$tip.label=="Xylopia_villosa"] <- 'Xylopia_grandiflora'
+janssens$tip.label[janssens$tip.label=="Xylopia_villosa"] <- 'Xylopia_aromatica'
 janssens$tip.label[janssens$tip.label=="Xylopia_aethiopica "] <- 'Xylopia_sericea'
 janssens$tip.label[janssens$tip.label=="Ilex_crenata"] <- 'Ilex_casiquiarensis'
 janssens$tip.label[janssens$tip.label=="Tabebuia_rosea"] <- 'Tabebuia_fluviatilis'
 janssens$tip.label[janssens$tip.label=="Trattinnickia_demerarae"] <- 'Trattinnickia_rhoifolia'
 janssens$tip.label[janssens$tip.label=="Tovomita_longifolia"] <- 'Tovomita_carinata'
 janssens$tip.label[janssens$tip.label=="Andira_inermis"] <- 'Andira_coriacea'
-janssens$tip.label[janssens$tip.label=="Copaifera_officinalis"] <- 'Copaifera_guianensis'
+janssens$tip.label[janssens$tip.label=="Copaifera_officinalis"] <- 'Copaifera_guyanensis'
 janssens$tip.label[janssens$tip.label=="Dimorphandra_conjugata"] <- 'Dimorphandra_polyandra'
 janssens$tip.label[janssens$tip.label=="Peltogyne_floribunda"] <- 'Peltogyne_venosa'
 janssens$tip.label[janssens$tip.label=="Vouacapoua_macropetala"] <- "Vouacapoua_americana"
@@ -105,24 +116,27 @@ janssens$tip.label[janssens$tip.label=="Ampelocera_hottlei"] <- "Ampelocera_eden
 janssens$tip.label[janssens$tip.label=="Cecropia_pachystachya"] <- "Cecropia_sciadophylla"
 janssens$tip.label[janssens$tip.label=="Pachira_brevipes"] <- "Pachira_nervosa"
 
-
-
+### Selection des taxon présents absent dans la phylogenie
 in_janssens <- na.omit(match(tip, janssens$tip.label))
 not_in_janssens <- which(is.na(match(tip, janssens$tip.label)))
+## Elagage de l'arbre
 treeJ <- keep.tip(janssens, in_janssens)
 treeJinit <- force.ultrametric(treeJ, method=c("extend"))
-plot(treeJinit, cex=0.5, no.margin=T,direction="up")
-
+#### Ajout des taxon absent de la phylogenie : créer des groupes paraphylétique OCOTEA
 t1j <- treeJinit
 for(i in 1:length(tip[not_in_janssens])){
-   t1j<-add.species.to.genus(t1j, tip[not_in_janssens][i])
-}
-
+   t1j<-add.species.to.genus(t1j, tip[not_in_janssens][i])}
 treeJ <- t1j
 
 plot(treeJ, cex=0.5, no.margin=T,direction="up")
-
-identify(treeJ)
-
-
 sp_not_in_treeJ <- tip[which(is.na(match(tip, treeJ$tip.label)))]
+
+
+rownames(guyane_m) <- guyane_m$taxon
+treeJ$tip.label <- gsub("_", " ", treeJ$tip.label)
+
+guyane_m <- guyane_m[treeJ$tip.label,]
+
+plotTree.barplot(treeJ,as.vector(guyane_m$shrinkage_res))
+
+
