@@ -6,8 +6,9 @@ library(picante)
 library(phytools)
 library(Taxonstand)
 library(ggtree)
-library(ggplot)
-
+library(treeio)
+library(ggplot2)
+library(tidyverse)
 
 #setwd("//NASLSB/Base de données/BD Cirad")
 
@@ -50,6 +51,11 @@ guyane$taxon[guyane$taxon == "Sclerolobium melinonii"] <- "Tachigali melinonii"
 
 
 
+### Retrait de cocos et recordo
+
+guyane <- guyane[guyane$genus != "Cocos",]
+guyane <- guyane[guyane$genus != "Recordoxylon",]
+
 
 #### Création data moyénnés
 guyane_m <- aggregate(RB  ~ taxon + family,guyane, mean)
@@ -57,10 +63,11 @@ aggD12 <- aggregate(D12  ~ taxon + family,guyane, mean)
 guyane_m$D12 <- aggD12$D12
 
 ### Extaction residus RB vs D12
-#plot(RB ~ D12, guyane_m)
+plot(RB ~ D12, guyane_m)
 m <- lm(RB~ D12, guyane_m)
 abline(m)
 guyane_m$shrinkage_res <- residuals(m)
+
 
 
 boxplot(shrinkage_res ~ family, guyane_m, xaxt="n", xlab="") 
@@ -136,7 +143,16 @@ rownames(guyane_m) <- guyane_m$taxon
 treeJ$tip.label <- gsub("_", " ", treeJ$tip.label)
 
 guyane_m <- guyane_m[treeJ$tip.label,]
+guyane_m <- guyane_m[guyane_m$taxon != "Recordoxylon_speciosum",]
+names(guyane_m)[1] <- 'label'
 
-plotTree.barplot(treeJ,as.vector(guyane_m$shrinkage_res))
+tree <- full_join(treeJ,guyane_m, by="label")
+
+p <- ggtree(tree, layout="circular", aes(color=shrinkage_res),size=1) +
+         scale_color_gradient2(low='gold', mid='gray', high='forestgreen') +
+         geom_tiplab(size=2.5) + xlim(NA, 500)
+p
 
 
+
+p1 <- p %<+% guyane_m + geom_tiplab(size=2)
